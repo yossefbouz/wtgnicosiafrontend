@@ -1,79 +1,56 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Image, StatusBar, Text, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { View, StyleSheet, Image, StatusBar, Text, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
 import MapView, { PROVIDER_DEFAULT, Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SIZES } from '../constants/theme';
+import { fetchMapVenues, fetchVenueStatus, subscribeVenueStatus } from '../lib/supabaseApi';
 
 const { width } = Dimensions.get('window');
 
 const CYPRUS_REGION = {
-    latitude: 35.1000, // Slightly adjusted center
+    latitude: 35.1000,
     longitude: 33.3823,
-    latitudeDelta: 1.8, // Zoom level to see whole island
+    latitudeDelta: 1.8,
     longitudeDelta: 1.8,
 };
 
-// Placeholder data - User to replace with actual locations
-const VENUES = [
-    {
-        id: 1,
-        name: "Guaba Beach Bar",
-        coordinate: { latitude: 34.7068, longitude: 33.1095 },
-        description: "Famous beach bar known for its wild parties and international DJs.",
-        offer: "Free entry before 5 PM",
-        event: "Sunday Carnival Party",
-        type: "Club"
-    },
-    {
-        id: 2,
-        name: "Marina Beach Bar",
-        coordinate: { latitude: 34.6685, longitude: 33.0378 },
-        description: "Luxury beach experience with exquisite cocktails and dining.",
-        offer: "2-for-1 Cocktails 6-8 PM",
-        event: "Sunset Chill Sessions",
-        type: "Bar"
-    },
-    {
-        id: 3,
-        name: "Nicosia Old Town Tavern",
-        coordinate: { latitude: 35.1740, longitude: 33.3640 },
-        description: "Traditional Cypriot meze in the heart of the capital.",
-        offer: "Free dessert with Meze",
-        event: "Live Greek Music",
-        type: "Restaurant"
-    },
-    {
-        id: 4,
-        name: "Ayia Napa Square",
-        coordinate: { latitude: 34.9896, longitude: 33.9963 },
-        description: "The heart of nightlife with multiple clubs and bars.",
-        offer: "Club Pass available",
-        event: "Foam Party @ The Castle",
-        type: "Club"
-    },
-    {
-        id: 5,
-        name: "Teez",
-        coordinate: { latitude: 35.169101, longitude: 33.359338 },
-        description: "Popular club in the city center.",
-        offer: "1 Free Drink",
-        event: "Entrance: €10",
-        type: "Club"
-    },
-    {
-        id: 6,
-        name: "Ithaki Venue",
-        coordinate: { latitude: 35.174030, longitude: 33.370621 },
-        description: "Open bar venue with great atmosphere.",
-        offer: "Open Bar: €15 (Wed)",
-        event: "Wednesday Open Bar",
-        type: "Bar"
-    }
-];
-
 const CyprusMapScreen = () => {
     const mapRef = useRef(null);
+    const [venues, setVenues] = useState([]);
     const [selectedVenue, setSelectedVenue] = useState(null);
+    const [statusMap, setStatusMap] = useState({});
+    const [loading, setLoading] = useState(true);
+
+    const loadVenues = useCallback(async () => {
+        try {
+            setLoading(true);
+            const data = await fetchMapVenues();
+            setVenues(data || []);
+            if (data?.length) {
+                const statuses = await fetchVenueStatus(data.map(v => v.id));
+                const byVenue = {};
+                (statuses || []).forEach(s => { byVenue[s.venue_id] = s; });
+                setStatusMap(byVenue);
+            }
+        } catch (err) {
+            console.warn('Failed to load map venues', err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadVenues();
+        const statusChannel = subscribeVenueStatus((payload) => {
+            const row = payload.new || payload.old;
+            if (row?.venue_id) {
+                setStatusMap((prev) => ({ ...prev, [row.venue_id]: { ...(prev[row.venue_id] || {}), ...row } }));
+            }
+        });
+        return () => {
+            if (statusChannel?.unsubscribe) statusChannel.unsubscribe();
+        };
+    }, [loadVenues]);
 
     const handleMarkerPress = (venue) => {
         setSelectedVenue(venue);
@@ -99,14 +76,14 @@ const CyprusMapScreen = () => {
                 showsUserLocation={true}
                 showsCompass={false}
                 showsPointsOfInterest={false}
-                onPress={closeDetails} // Close details when clicking on the map
+                onPress={closeDetails}
             >
-                {VENUES.map((venue) => (
+                {venues.map((venue) => (
                     <Marker
                         key={venue.id}
-                        coordinate={venue.coordinate}
+                        coordinate={{ latitude: venue.geo_lat, longitude: venue.geo_lng }}
                         onPress={(e) => {
-                            e.stopPropagation(); // Prevent map onPress
+                            e.stopPropagation();
                             handleMarkerPress(venue);
                         }}
                     >
@@ -126,11 +103,18 @@ const CyprusMapScreen = () => {
 
             <View style={styles.logoContainer}>
                 <Image
-                    source={require('../assets/images/logoreal.png')}
+                    source={require('../assets/images/logowtgnicosia.png')}
                     style={styles.logo}
                     resizeMode="contain"
                 />
             </View>
+
+            {loading && (
+                <View style={styles.loadingBadge}>
+                    <ActivityIndicator color={COLORS.primary} size="small" />
+                    <Text style={styles.loadingText}>Loading map...</Text>
+                </View>
+            )}
 
             {/* Details Card */}
             {selectedVenue && (
@@ -143,17 +127,17 @@ const CyprusMapScreen = () => {
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={styles.venueDescription}>{selectedVenue.description}</Text>
+                        <Text style={styles.venueDescription}>{selectedVenue.address || selectedVenue.city || 'Nicosia'}</Text>
 
                         <View style={styles.infoRow}>
                             <View style={styles.infoItem}>
-                                <Text style={styles.infoLabel}>OFFER</Text>
-                                <Text style={styles.infoText} numberOfLines={1}>{selectedVenue.offer}</Text>
+                                <Text style={styles.infoLabel}>CROWD</Text>
+                                <Text style={styles.infoText} numberOfLines={1}>{statusMap[selectedVenue.id]?.crowd_level || 'Unknown'}</Text>
                             </View>
                             <View style={styles.divider} />
                             <View style={styles.infoItem}>
-                                <Text style={styles.infoLabel}>EVENT</Text>
-                                <Text style={styles.infoText} numberOfLines={1}>{selectedVenue.event}</Text>
+                                <Text style={styles.infoLabel}>WAIT</Text>
+                                <Text style={styles.infoText} numberOfLines={1}>{statusMap[selectedVenue.id]?.wait_time_minutes ? `${statusMap[selectedVenue.id].wait_time_minutes} min` : ''}</Text>
                             </View>
                         </View>
 
@@ -178,23 +162,34 @@ const styles = StyleSheet.create({
     },
     logoContainer: {
         position: 'absolute',
-        top: 60,
+        top: 40,
         alignSelf: 'center',
         zIndex: 10,
-        shadowColor: "#000",
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.30,
-        shadowRadius: 4.65,
-        elevation: 8,
+        paddingHorizontal: 0,
+        paddingVertical: 0,
     },
     logo: {
-        width: 100,
-        height: 50,
+        width: 150,
+        height: 65,
     },
-    // Marker Styles
+    loadingBadge: {
+        position: 'absolute',
+        top: 110,
+        alignSelf: 'center',
+        backgroundColor: COLORS.card,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    loadingText: {
+        color: COLORS.textDim,
+        ...FONTS.small,
+    },
     markerContainer: {
         alignItems: 'center',
     },
@@ -221,10 +216,9 @@ const styles = StyleSheet.create({
         borderRightColor: 'transparent',
         transform: [{ translateY: -1 }],
     },
-    // Details Card Styles
     detailsContainer: {
         position: 'absolute',
-        bottom: 100, // Above bottom nav
+        bottom: 100,
         left: 0,
         right: 0,
         paddingHorizontal: 20,
@@ -309,7 +303,7 @@ const mapStyle = [
         "elementType": "geometry",
         "stylers": [
             {
-                "color": "#1A1A1A" // COLORS.card - Land color
+                "color": "#1A1A1A"
             }
         ]
     },
@@ -476,7 +470,7 @@ const mapStyle = [
         "elementType": "geometry",
         "stylers": [
             {
-                "color": "#0D0D0D" // COLORS.background - Water color
+                "color": "#0D0D0D"
             }
         ]
     },

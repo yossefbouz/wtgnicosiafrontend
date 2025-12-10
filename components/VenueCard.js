@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS } from '../constants/theme';
 
-const VenueCard = ({ name, location, vibe, votes, image, isOpen }) => {
+const VenueCard = ({ name, location, vibe, votes, image, isOpen, onVote }) => {
     return (
         <TouchableOpacity activeOpacity={0.9} style={styles.container}>
             <ImageBackground source={{ uri: image }} style={styles.image} imageStyle={styles.imageRadius}>
@@ -31,7 +31,7 @@ const VenueCard = ({ name, location, vibe, votes, image, isOpen }) => {
                                 <Text style={styles.voteLabel}>going</Text>
                             </View>
 
-                            <TouchableOpacity style={styles.voteButton}>
+                            <TouchableOpacity style={styles.voteButton} onPress={onVote}>
                                 <Text style={styles.voteButtonText}>Vote Yes</Text>
                             </TouchableOpacity>
                         </View>

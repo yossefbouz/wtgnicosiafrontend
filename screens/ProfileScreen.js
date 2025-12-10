@@ -10,73 +10,123 @@ import {
     Dimensions,
     KeyboardAvoidingView,
     Platform,
-    ScrollView
+    ScrollView,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SIZES } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { signInWithEmail, signUpWithEmail, signOut, fetchProfile, fetchUserHistory } from '../lib/supabaseApi';
+import { useAuth } from '../lib/authContext';
 
 const { width } = Dimensions.get('window');
 
 const ProfileScreen = () => {
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const { user } = useAuth();
+    const [mode, setMode] = useState('login'); // login | signup
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [displayName, setDisplayName] = useState('');
+    const [university, setUniversity] = useState('');
+    const [profile, setProfile] = useState(null);
+    const [history, setHistory] = useState({ votes: [], interests: [], checkIns: [], favorites: [] });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
-    // Animation Values - Initialize to visible state to prevent blank screen
     const fadeAnim = useRef(new Animated.Value(1)).current;
     const slideAnim = useRef(new Animated.Value(0)).current;
     const scaleAnim = useRef(new Animated.Value(1)).current;
 
-    // useEffect(() => {
-    //     // Optional: Add subtle entrance if needed, but keep default visible
-    // }, [isLoggedIn]);
+    const loadProfile = async () => {
+        try {
+            const [p, h] = await Promise.all([fetchProfile(), fetchUserHistory()]);
+            if (p) {
+                setProfile(p);
+                setHistory(h);
+            }
+        } catch (err) {
+            console.warn('Profile load failed', err);
+        }
+    };
 
-    const handleLogin = () => {
-        if (email && password) {
-            // Simulate API call/loading
-            Animated.timing(fadeAnim, {
-                toValue: 0,
-                duration: 300,
-                useNativeDriver: true,
-            }).start(() => {
-                setIsLoggedIn(true);
-                // Reset animations for next screen
+    useEffect(() => {
+        if (user) {
+            loadProfile();
+        } else {
+            setProfile(null);
+            setHistory({ votes: [], interests: [], checkIns: [], favorites: [] });
+        }
+    }, [user]);
+
+    const isValidEmail = (value) => /\S+@\S+\.\S+/.test(value);
+
+    const handleLogin = async () => {
+        setError('');
+        if (!email || !password) return setError('Email and password required');
+        if (!isValidEmail(email)) return setError('Enter a valid email');
+        setLoading(true);
+        try {
+            await signInWithEmail({ email, password });
+            await loadProfile();
+            Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
                 fadeAnim.setValue(0);
                 slideAnim.setValue(50);
                 scaleAnim.setValue(0.9);
             });
+        } catch (err) {
+            const msg = err?.message || 'Login failed';
+            if (msg.toLowerCase().includes('email not confirmed')) {
+                setError('Please confirm your email before logging in.');
+            } else if (msg.toLowerCase().includes('invalid login')) {
+                setError('Invalid email or password.');
+            } else {
+                setError(msg);
+            }
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleLogout = () => {
-        Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-        }).start(() => {
-            setIsLoggedIn(false);
-            setEmail('');
-            setPassword('');
-            // Reset animations
-            fadeAnim.setValue(0);
-            slideAnim.setValue(50);
-            scaleAnim.setValue(0.9);
-        });
-    };
-
-    // Dummy user data
-    const userProfile = {
-        name: "Alex K.",
-        bio: "Nightlife enthusiast & party seeker. Always looking for the best vibes in Cyprus. 🇨🇾 ✨",
-        stats: {
-            yes: 42,
-            no: 15
+    const handleSignup = async () => {
+        setError('');
+        if (!email || !password || !confirmPassword) return setError('Fill all fields');
+        if (!isValidEmail(email)) return setError('Enter a valid email');
+        if (password.length < 6) return setError('Password must be at least 6 characters');
+        if (password !== confirmPassword) return setError('Passwords must match');
+        setLoading(true);
+        try {
+            await signUpWithEmail({ email, password, displayName, university });
+            Alert.alert('Check your email', 'We sent a verification link. After confirming, log in.');
+            setMode('login');
+        } catch (err) {
+            const msg = err?.message || 'Signup failed';
+            if (msg.toLowerCase().includes('already registered')) {
+                setError('Email already registered. Try logging in.');
+            } else {
+                setError(msg);
+            }
+        } finally {
+            setLoading(false);
         }
     };
 
-    if (!isLoggedIn) {
+    const handleLogout = async () => {
+        await signOut();
+        setProfile(null);
+        setHistory({ votes: [], interests: [], checkIns: [], favorites: [] });
+        setEmail('');
+        setPassword('');
+        setConfirmPassword('');
+    };
+
+    const userProfile = profile || {
+        display_name: 'Guest',
+        bio: 'Sign in to see your stats',
+    };
+
+    if (!user) {
         return (
             <SafeAreaView style={styles.container}>
                 <KeyboardAvoidingView
@@ -98,8 +148,8 @@ const ProfileScreen = () => {
                                 <View style={styles.iconCircle}>
                                     <Ionicons name="person" size={40} color={COLORS.primary} />
                                 </View>
-                                <Text style={styles.title}>Welcome Back</Text>
-                                <Text style={styles.subtitle}>Sign in to access your profile</Text>
+                                <Text style={styles.title}>{mode === 'login' ? 'Welcome Back' : 'Create Account'}</Text>
+                                <Text style={styles.subtitle}>{mode === 'login' ? 'Sign in to access your profile' : 'Sign up with email + password'}</Text>
                             </View>
 
                             <View style={styles.form}>
@@ -128,10 +178,49 @@ const ProfileScreen = () => {
                                     />
                                 </View>
 
+                                {mode === 'signup' && (
+                                    <>
+                                        <View style={styles.inputContainer}>
+                                            <Ionicons name="lock-closed" size={20} color={COLORS.muted} style={styles.inputIcon} />
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="Confirm Password"
+                                                placeholderTextColor={COLORS.muted}
+                                                value={confirmPassword}
+                                                onChangeText={setConfirmPassword}
+                                                secureTextEntry
+                                            />
+                                        </View>
+                                        <View style={styles.inputContainer}>
+                                            <Ionicons name="person-circle" size={20} color={COLORS.muted} style={styles.inputIcon} />
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="Display Name"
+                                                placeholderTextColor={COLORS.muted}
+                                                value={displayName}
+                                                onChangeText={setDisplayName}
+                                            />
+                                        </View>
+                                        <View style={styles.inputContainer}>
+                                            <Ionicons name="school-outline" size={20} color={COLORS.muted} style={styles.inputIcon} />
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="University (optional)"
+                                                placeholderTextColor={COLORS.muted}
+                                                value={university}
+                                                onChangeText={setUniversity}
+                                            />
+                                        </View>
+                                    </>
+                                )}
+
+                                {!!error && <Text style={styles.errorText}>{error}</Text>}
+
                                 <TouchableOpacity
                                     style={styles.loginButton}
-                                    onPress={handleLogin}
+                                    onPress={mode === 'login' ? handleLogin : handleSignup}
                                     activeOpacity={0.8}
+                                    disabled={loading}
                                 >
                                     <LinearGradient
                                         colors={[COLORS.primary, COLORS.primaryBright]}
@@ -139,9 +228,15 @@ const ProfileScreen = () => {
                                         start={{ x: 0, y: 0 }}
                                         end={{ x: 1, y: 0 }}
                                     >
-                                        <Text style={styles.loginButtonText}>Log In</Text>
+                                        <Text style={styles.loginButtonText}>{mode === 'login' ? 'Log In' : 'Sign Up'}</Text>
                                         <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
                                     </LinearGradient>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity onPress={() => setMode(mode === 'login' ? 'signup' : 'login')} style={styles.switchMode}>
+                                    <Text style={styles.switchModeText}>
+                                        {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
                         </Animated.View>
@@ -164,13 +259,13 @@ const ProfileScreen = () => {
                     <View style={styles.profileHeader}>
                         <View style={styles.avatarContainer}>
                             <Image
-                                source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=1000&auto=format&fit=crop' }}
+                                source={{ uri: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=1000&auto=format&fit=crop' }}
                                 style={styles.avatar}
                             />
                             <View style={styles.onlineBadge} />
                         </View>
-                        <Text style={styles.userName}>{userProfile.name}</Text>
-                        <Text style={styles.userBio}>{userProfile.bio}</Text>
+                        <Text style={styles.userName}>{userProfile.display_name || userProfile.email}</Text>
+                        <Text style={styles.userBio}>{profile?.university || 'Ready to find the next vibe.'}</Text>
                     </View>
 
                     <View style={styles.statsContainer}>
@@ -178,16 +273,16 @@ const ProfileScreen = () => {
                             <View style={[styles.statIcon, { backgroundColor: 'rgba(0, 255, 133, 0.1)' }]}>
                                 <Ionicons name="thumbs-up" size={24} color={COLORS.success} />
                             </View>
-                            <Text style={[styles.statNumber, { color: COLORS.success }]}>{userProfile.stats.yes}</Text>
-                            <Text style={styles.statLabel}>Vibes Matched</Text>
+                            <Text style={[styles.statNumber, { color: COLORS.success }]}>{history.votes.filter(v => v.status === 'yes').length}</Text>
+                            <Text style={styles.statLabel}>Yes votes</Text>
                         </View>
 
                         <View style={[styles.statCard, { borderColor: 'rgba(255, 77, 77, 0.3)' }]}>
                             <View style={[styles.statIcon, { backgroundColor: 'rgba(255, 77, 77, 0.1)' }]}>
-                                <Ionicons name="thumbs-down" size={24} color={COLORS.error} />
+                                <Ionicons name="calendar" size={24} color={COLORS.primary} />
                             </View>
-                            <Text style={[styles.statNumber, { color: COLORS.error }]}>{userProfile.stats.no}</Text>
-                            <Text style={styles.statLabel}>Skipped</Text>
+                            <Text style={[styles.statNumber, { color: COLORS.primary }]}>{history.interests.length}</Text>
+                            <Text style={styles.statLabel}>Events saved</Text>
                         </View>
                     </View>
 
@@ -277,6 +372,11 @@ const styles = StyleSheet.create({
         color: COLORS.white,
         ...FONTS.body,
     },
+    errorText: {
+        color: COLORS.error,
+        ...FONTS.body,
+        textAlign: 'center',
+    },
     loginButton: {
         marginTop: 20,
         borderRadius: SIZES.radius,
@@ -293,7 +393,14 @@ const styles = StyleSheet.create({
         color: COLORS.white,
         ...FONTS.h3,
     },
-    // Profile Styles
+    switchMode: {
+        alignItems: 'center',
+        marginTop: 10,
+    },
+    switchModeText: {
+        color: COLORS.text,
+        ...FONTS.bodyMedium,
+    },
     profileScroll: {
         padding: SIZES.padding,
         paddingBottom: 100,

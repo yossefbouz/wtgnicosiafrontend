@@ -1,40 +1,12 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { View, Text, ScrollView, StyleSheet, StatusBar, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SIZES, FONTS } from '../constants/theme';
 import SearchBar from '../components/SearchBar';
 import VenueCard from '../components/VenueCard';
-
-
-const DUMMY_VENUES = [
-    {
-        id: 1,
-        name: 'Club Teez',
-        location: 'Evagorou Ave, Nicosia',
-        vibe: 'Packed',
-        votes: 142,
-        isOpen: true,
-        image: 'https://images.unsplash.com/photo-1574100004472-e5363f2f87f3?q=80&w=1000&auto=format&fit=crop',
-    },
-    {
-        id: 2,
-        name: 'Lost & Found Drinkery',
-        location: 'Vyronos Ave, Nicosia',
-        vibe: 'Chill',
-        votes: 89,
-        isOpen: true,
-        image: 'https://images.unsplash.com/photo-1514525253440-b393452e8d26?q=80&w=1000&auto=format&fit=crop',
-    },
-    {
-        id: 3,
-        name: 'Ithaki Venue',
-        location: 'Old Nicosia',
-        vibe: 'Student Night',
-        votes: 205,
-        isOpen: false,
-        image: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1000&auto=format&fit=crop',
-    },
-];
+import { fetchTrendingVenues, voteVenue, subscribeVenueStatus, subscribeVenueVotes } from '../lib/supabaseApi';
+import { useAuth } from '../lib/authContext';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const FILTERS = ['All', 'Chill', 'Party', 'Student Night', 'Near Me'];
 
@@ -51,42 +23,186 @@ const FilterChip = ({ label, active }) => (
 );
 
 const HomeScreen = () => {
+    const { user } = useAuth();
+    const [venues, setVenues] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const heroAnim = useRef(new Animated.Value(0)).current;
+    const listAnim = useRef(new Animated.Value(0)).current;
+    const pulseAnim = useRef(new Animated.Value(0)).current;
+
+    const loadVenues = useCallback(async () => {
+        try {
+            setLoading(true);
+            const data = await fetchTrendingVenues();
+            setVenues(data || []);
+        } catch (err) {
+            console.warn('Failed to load venues', err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadVenues();
+        const votesChannel = subscribeVenueVotes(() => loadVenues());
+        const statusChannel = subscribeVenueStatus(() => loadVenues());
+        return () => {
+            if (votesChannel?.unsubscribe) votesChannel.unsubscribe();
+            if (statusChannel?.unsubscribe) statusChannel.unsubscribe();
+        };
+    }, [loadVenues]);
+
+    useEffect(() => {
+        const entry = Animated.parallel([
+            Animated.timing(heroAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+            Animated.timing(listAnim, { toValue: 1, duration: 720, delay: 120, useNativeDriver: true }),
+        ]);
+        const pulse = Animated.loop(
+            Animated.sequence([
+                Animated.timing(pulseAnim, { toValue: 1, duration: 1600, useNativeDriver: true }),
+                Animated.timing(pulseAnim, { toValue: 0, duration: 1600, useNativeDriver: true }),
+            ])
+        );
+        entry.start();
+        pulse.start();
+        return () => pulse.stop();
+    }, [heroAnim, listAnim, pulseAnim]);
+
+    const handleVote = async (venueId, status) => {
+        try {
+            if (!user) {
+                Alert.alert('Login required', 'Please log in to vote.');
+                return;
+            }
+            await voteVenue(venueId, status);
+        } catch (err) {
+            if (err?.code === 'UNAUTHENTICATED') {
+                Alert.alert('Login required', 'Please log in to vote.');
+                return;
+            }
+            console.warn('Vote failed', err);
+            Alert.alert('Vote failed', 'Something went wrong, please try again.');
+        }
+    };
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await loadVenues();
+        setRefreshing(false);
+    };
+
+    const heroTranslate = heroAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [14, 0],
+    });
+
+    const listTranslate = listAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [16, 0],
+    });
+
+    const glowScale = pulseAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.92, 1.08],
+    });
+
+    const glowOpacity = pulseAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.08, 0.22],
+    });
+
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
 
             <View style={styles.contentContainer}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>Where To Go</Text>
-                    <Text style={styles.subtitle}>Find the vibe tonight</Text>
+                    <Animated.View style={[styles.heroGlow, { opacity: glowOpacity, transform: [{ scale: glowScale }] }]} />
+                    <LinearGradient
+                        colors={['rgba(111, 0, 255, 0.18)', 'rgba(0, 229, 255, 0.1)', 'rgba(0, 0, 0, 0.4)']}
+                        style={styles.logoCard}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                    >
+                        <Animated.View style={{ opacity: heroAnim, transform: [{ translateY: heroTranslate }] }}>
+                            <Image
+                                source={require('../assets/images/logowtgnicosia.png')}
+                                style={styles.logo}
+                                resizeMode="contain"
+                                accessible
+                                accessibilityLabel="Where To Go Nicosia logo"
+                            />
+                            <Text style={styles.subtitle}>Live radar of Nicosia nights</Text>
+                            <View style={styles.heroBadges}>
+                                <View style={styles.badge}>
+                                    <Text style={styles.badgeText}>Instant crowd checks</Text>
+                                </View>
+                                <View style={[styles.badge, styles.badgeSecondary]}>
+                                    <Text style={[styles.badgeText, { color: COLORS.background }]}>Map + Events synced</Text>
+                                </View>
+                            </View>
+                        </Animated.View>
+                    </LinearGradient>
                 </View>
 
                 <SearchBar />
 
-                <View style={styles.filterContainer}>
+                <Animated.View style={[styles.filterContainer, { opacity: listAnim, transform: [{ translateY: listTranslate }] }]}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         {FILTERS.map((filter, index) => (
                             <FilterChip key={index} label={filter} active={index === 0} />
                         ))}
                     </ScrollView>
-                </View>
+                </Animated.View>
 
                 <ScrollView
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.scrollContent}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
                 >
-                    <Text style={styles.sectionTitle}>Trending Tonight</Text>
+                    <Animated.View style={{ opacity: listAnim, transform: [{ translateY: listTranslate }] }}>
+                        <Text style={styles.sectionTitle}>Trending Tonight</Text>
+                    </Animated.View>
 
-                    {DUMMY_VENUES.map((venue) => (
-                        <VenueCard
+                    {loading && (
+                        <View style={styles.loadingRow}>
+                            <ActivityIndicator color={COLORS.primary} />
+                            <Text style={styles.loadingText}>Loading venues...</Text>
+                        </View>
+                    )}
+
+                    {venues.map((venue) => (
+                        <Animated.View
                             key={venue.id}
-                            name={venue.name}
-                            location={venue.location}
-                            vibe={venue.vibe}
-                            votes={venue.votes}
-                            isOpen={venue.isOpen}
-                            image={venue.image}
-                        />
+                            style={[
+                                styles.cardWrapper,
+                                { opacity: listAnim, transform: [{ translateY: listTranslate }] }
+                            ]}
+                        >
+                            <VenueCard
+                                name={venue.name}
+                                location={venue.address || venue.city || 'Nicosia'}
+                                vibe={venue.crowd_level ? venue.crowd_level.toUpperCase() : 'Vibe'}
+                                votes={venue.yes_votes_last24h}
+                                isOpen
+                                image={venue.cover_url}
+                                onVote={() => handleVote(venue.id, 'yes')}
+                                disabled={!user}
+                            />
+                            <View style={styles.voteRow}>
+                                {['yes', 'maybe', 'no'].map((status) => (
+                                    <TouchableOpacity
+                                        key={status}
+                                        style={[styles.votePill, !user && styles.votePillDisabled]}
+                                        onPress={() => handleVote(venue.id, status)}
+                                        disabled={!user}
+                                    >
+                                        <Text style={styles.votePillText}>{status.toUpperCase()}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </Animated.View>
                     ))}
 
                     {/* Padding for bottom nav */}
@@ -110,14 +226,33 @@ const styles = StyleSheet.create({
     header: {
         marginTop: 10,
         marginBottom: 5,
+        position: 'relative',
     },
-    title: {
-        color: COLORS.primary,
-        ...FONTS.h1,
+    logoCard: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 18,
+        paddingHorizontal: 14,
+        marginBottom: 10,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 6,
+        overflow: 'hidden',
+    },
+    logo: {
+        height: 80,
+        width: '85%',
     },
     subtitle: {
         color: COLORS.textDim,
         ...FONTS.body,
+        marginTop: 6,
+        textAlign: 'center',
     },
     filterContainer: {
         marginBottom: 20,
@@ -152,11 +287,77 @@ const styles = StyleSheet.create({
         ...FONTS.h2,
         marginBottom: 15,
     },
+    loadingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 20,
+    },
+    loadingText: {
+        color: COLORS.textDim,
+        ...FONTS.body,
+    },
+    voteRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginTop: -10,
+    },
+    votePill: {
+        backgroundColor: COLORS.card,
+        borderColor: COLORS.border,
+        borderWidth: 1,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 12,
+    },
+    votePillDisabled: {
+        opacity: 0.5,
+    },
+    votePillText: {
+        color: COLORS.white,
+        ...FONTS.bodyMedium,
+        fontSize: 12,
+    },
     bottomNavContainer: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
+    },
+    heroGlow: {
+        position: 'absolute',
+        top: -30,
+        left: -40,
+        right: -40,
+        height: 180,
+        backgroundColor: COLORS.primary,
+        borderRadius: 120,
+        opacity: 0.12,
+        zIndex: -1,
+    },
+    heroBadges: {
+        flexDirection: 'row',
+        gap: 10,
+        marginTop: 12,
+    },
+    badge: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+    },
+    badgeSecondary: {
+        backgroundColor: COLORS.secondary,
+        borderColor: COLORS.secondary,
+    },
+    badgeText: {
+        ...FONTS.small,
+        color: COLORS.white,
+    },
+    cardWrapper: {
+        marginBottom: 20,
     },
 });
 

@@ -1,8 +1,8 @@
-import React, { useCallback, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen';
+import * as ExpoSplashScreen from 'expo-splash-screen';
 import { useFonts, Montserrat_400Regular, Montserrat_600SemiBold, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { Inter_400Regular, Inter_500Medium } from '@expo-google-fonts/inter';
 
@@ -10,14 +10,17 @@ import HomeScreen from './screens/HomeScreen';
 import CyprusMapScreen from './screens/CyprusMapScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import EventsScreen from './screens/EventsScreen';
+import { SplashScreen as AppSplashScreen } from './screens/SplashScreen';
 import BottomNav from './components/BottomNav';
 import { COLORS } from './constants/theme';
+import { AuthProvider } from './lib/authContext';
 
 // Keep the splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
+ExpoSplashScreen.preventAutoHideAsync();
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Home');
+  const [showSplash, setShowSplash] = useState(true);
 
   let [fontsLoaded] = useFonts({
     'Montserrat-Regular': Montserrat_400Regular,
@@ -27,10 +30,15 @@ export default function App() {
     'Inter-Medium': Inter_500Medium,
   });
 
-  const onLayoutRootView = useCallback(async () => {
+  useEffect(() => {
+    let timer;
     if (fontsLoaded) {
-      await SplashScreen.hideAsync();
+      ExpoSplashScreen.hideAsync();
+      timer = setTimeout(() => setShowSplash(false), 2000);
     }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [fontsLoaded]);
 
   if (!fontsLoaded) {
@@ -53,17 +61,25 @@ export default function App() {
   };
 
   return (
-    <SafeAreaProvider>
-      <View style={{ flex: 1, backgroundColor: COLORS.background }} onLayout={onLayoutRootView}>
-        <StatusBar style="light" />
-        <View style={{ flex: 1 }}>
-          {renderScreen()}
+    <AuthProvider>
+      <SafeAreaProvider>
+        <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+          <StatusBar style="light" />
+          {showSplash ? (
+            <AppSplashScreen onFinish={() => setShowSplash(false)} />
+          ) : (
+            <>
+              <View style={{ flex: 1 }}>
+                {renderScreen()}
+              </View>
+              <View style={styles.bottomNavContainer}>
+                <BottomNav activeTab={activeTab} onTabPress={setActiveTab} />
+              </View>
+            </>
+          )}
         </View>
-        <View style={styles.bottomNavContainer}>
-          <BottomNav activeTab={activeTab} onTabPress={setActiveTab} />
-        </View>
-      </View>
-    </SafeAreaProvider>
+      </SafeAreaProvider>
+    </AuthProvider>
   );
 }
 

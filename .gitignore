@@ -26,13 +26,16 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
+# env / secrets
+.env
+.env.*
+.env*.local
+
 # macOS
 .DS_Store
 *.pem
 
 # local env files
-.env*.local
-
 # typescript
 *.tsbuildinfo
 

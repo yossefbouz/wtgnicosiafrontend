@@ -1,45 +1,61 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ImageBackground, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS, FONTS, SIZES } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const EventCard = ({ title, date, venue, image, interestedCount }) => {
+const EventCard = ({ title, date, venue, image, interestedCount, onInterested, onGoing, onBook, tag, accentColor }) => {
+    const posterSource = image ? { uri: image } : require('../assets/images/logowtgnicosia.png');
+    const pillColor = accentColor || COLORS.secondary;
+
     return (
         <TouchableOpacity style={styles.container} activeOpacity={0.9}>
-            <Image source={{ uri: image }} style={styles.image} />
-            <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.9)']}
-                style={styles.gradient}
-            />
-
-            <View style={styles.content}>
-                <View style={styles.dateBadge}>
-                    <Text style={styles.dateText}>{date}</Text>
-                </View>
-
-                <Text style={styles.title} numberOfLines={2}>{title}</Text>
-
-                <View style={styles.row}>
-                    <Ionicons name="location-outline" size={16} color={COLORS.secondary} />
-                    <Text style={styles.venue}>{venue}</Text>
-                </View>
-
-                <View style={styles.footer}>
-                    <View style={styles.interestedContainer}>
-                        <View style={styles.avatars}>
-                            {[1, 2, 3].map((_, i) => (
-                                <View key={i} style={[styles.avatarPlaceholder, { marginLeft: i > 0 ? -10 : 0 }]} />
-                            ))}
+            <ImageBackground source={posterSource} style={styles.image} imageStyle={styles.imageRadius}>
+                <LinearGradient
+                    colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.9)']}
+                    style={styles.gradient}
+                >
+                    <View style={styles.topRow}>
+                        {tag && (
+                            <View style={[styles.tagBadge, { borderColor: pillColor, backgroundColor: 'rgba(0, 229, 255, 0.12)' }]}>
+                                <Text style={[styles.tagText, { color: pillColor }]}>{tag}</Text>
+                            </View>
+                        )}
+                        <View style={styles.dateBadge}>
+                            <Text style={styles.dateText}>{date}</Text>
                         </View>
-                        <Text style={styles.interestedText}>{interestedCount} interested</Text>
                     </View>
 
-                    <TouchableOpacity style={styles.actionButton}>
-                        <Text style={styles.actionButtonText}>Book</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
+                    <View style={styles.content}>
+                        <Text style={styles.title} numberOfLines={2}>{title}</Text>
+
+                        <View style={styles.row}>
+                            <Ionicons name="location-outline" size={16} color={COLORS.secondary} />
+                            <Text style={styles.venue} numberOfLines={1}>{venue}</Text>
+                        </View>
+
+                        <View style={styles.footer}>
+                            <TouchableOpacity style={styles.interestedContainer} onPress={onInterested} activeOpacity={0.8}>
+                                <View style={styles.avatars}>
+                                    {[1, 2, 3].map((_, i) => (
+                                        <View key={i} style={[styles.avatarPlaceholder, { marginLeft: i > 0 ? -10 : 0 }]} />
+                                    ))}
+                                </View>
+                                <Text style={styles.interestedText}>{interestedCount} interested</Text>
+                            </TouchableOpacity>
+
+                            <View style={styles.actionsRow}>
+                                <TouchableOpacity style={styles.secondaryButton} onPress={onGoing} activeOpacity={0.85}>
+                                    <Text style={styles.secondaryButtonText}>Going</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.actionButton} onPress={onBook} activeOpacity={0.9}>
+                                    <Text style={styles.actionButtonText}>Book</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </LinearGradient>
+            </ImageBackground>
         </TouchableOpacity>
     );
 };
@@ -58,28 +74,30 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
+    imageRadius: {
+        borderRadius: SIZES.radius,
+    },
     gradient: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: '60%',
+        flex: 1,
+        padding: 15,
+        justifyContent: 'space-between',
     },
     content: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        padding: 15,
+        width: '100%',
+        paddingBottom: 4,
+    },
+    topRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     dateBadge: {
-        position: 'absolute',
-        top: -160,
-        right: 15,
         backgroundColor: COLORS.primary,
         paddingHorizontal: 12,
         paddingVertical: 6,
-        borderRadius: 8,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
     },
     dateText: {
         color: COLORS.white,
@@ -110,6 +128,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
+        paddingVertical: 4,
+        paddingRight: 8,
     },
     avatars: {
         flexDirection: 'row',
@@ -126,6 +146,11 @@ const styles = StyleSheet.create({
         color: COLORS.textDim,
         ...FONTS.small,
     },
+    actionsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
     actionButton: {
         backgroundColor: COLORS.white,
         paddingHorizontal: 20,
@@ -136,6 +161,31 @@ const styles = StyleSheet.create({
         color: COLORS.background,
         ...FONTS.h3,
         fontSize: 14,
+    },
+    secondaryButton: {
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
+    },
+    secondaryButtonText: {
+        color: COLORS.white,
+        ...FONTS.bodyMedium,
+        fontSize: 13,
+    },
+    tagBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 14,
+        borderWidth: 1,
+    },
+    tagText: {
+        ...FONTS.small,
+        fontSize: 12,
+        fontFamily: 'Montserrat-SemiBold',
+        letterSpacing: 0.5,
     },
 });
 
