@@ -1,12 +1,11 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Image, Animated } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, StatusBar, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SIZES, FONTS } from '../constants/theme';
 import SearchBar from '../components/SearchBar';
 import VenueCard from '../components/VenueCard';
 import { fetchTrendingVenues, voteVenue, subscribeVenueStatus, subscribeVenueVotes } from '../lib/supabaseApi';
 import { useAuth } from '../lib/authContext';
-import { LinearGradient } from 'expo-linear-gradient';
 
 const FILTERS = ['All', 'Chill', 'Party', 'Student Night', 'Near Me'];
 
@@ -119,31 +118,9 @@ const HomeScreen = () => {
             <View style={styles.contentContainer}>
                 <View style={styles.header}>
                     <Animated.View style={[styles.heroGlow, { opacity: glowOpacity, transform: [{ scale: glowScale }] }]} />
-                    <LinearGradient
-                        colors={['rgba(111, 0, 255, 0.18)', 'rgba(0, 229, 255, 0.1)', 'rgba(0, 0, 0, 0.4)']}
-                        style={styles.logoCard}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                    >
-                        <Animated.View style={{ opacity: heroAnim, transform: [{ translateY: heroTranslate }] }}>
-                            <Image
-                                source={require('../assets/images/logowtgnicosia.png')}
-                                style={styles.logo}
-                                resizeMode="contain"
-                                accessible
-                                accessibilityLabel="Where To Go Nicosia logo"
-                            />
-                            <Text style={styles.subtitle}>Live radar of Nicosia nights</Text>
-                            <View style={styles.heroBadges}>
-                                <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>Instant crowd checks</Text>
-                                </View>
-                                <View style={[styles.badge, styles.badgeSecondary]}>
-                                    <Text style={[styles.badgeText, { color: COLORS.background }]}>Map + Events synced</Text>
-                                </View>
-                            </View>
-                        </Animated.View>
-                    </LinearGradient>
+                    <Animated.View style={[styles.titleContainer, { opacity: heroAnim, transform: [{ translateY: heroTranslate }] }]}>
+                        <Text style={styles.appTitle}>WTG Nicosia</Text>
+                    </Animated.View>
                 </View>
 
                 <SearchBar />
@@ -228,31 +205,20 @@ const styles = StyleSheet.create({
         marginBottom: 5,
         position: 'relative',
     },
-    logoCard: {
+    titleContainer: {
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 18,
-        paddingHorizontal: 14,
+        paddingVertical: 22,
         marginBottom: 10,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
-        elevation: 6,
-        overflow: 'hidden',
     },
-    logo: {
-        height: 80,
-        width: '85%',
-    },
-    subtitle: {
-        color: COLORS.textDim,
-        ...FONTS.body,
-        marginTop: 6,
-        textAlign: 'center',
+    appTitle: {
+        ...FONTS.h1,
+        color: COLORS.primary,
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+        textShadowColor: COLORS.accentDark,
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 6,
     },
     filterContainer: {
         marginBottom: 20,
@@ -334,27 +300,6 @@ const styles = StyleSheet.create({
         borderRadius: 120,
         opacity: 0.12,
         zIndex: -1,
-    },
-    heroBadges: {
-        flexDirection: 'row',
-        gap: 10,
-        marginTop: 12,
-    },
-    badge: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-    },
-    badgeSecondary: {
-        backgroundColor: COLORS.secondary,
-        borderColor: COLORS.secondary,
-    },
-    badgeText: {
-        ...FONTS.small,
-        color: COLORS.white,
     },
     cardWrapper: {
         marginBottom: 20,

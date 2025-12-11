@@ -103,7 +103,7 @@ const CyprusMapScreen = () => {
 
             <View style={styles.logoContainer}>
                 <Image
-                    source={require('../assets/images/logowtgnicosia.png')}
+                    source={require('../assets/images/logore.png')}
                     style={styles.logo}
                     resizeMode="contain"
                 />

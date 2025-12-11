@@ -1,11 +1,18 @@
 import React from 'react';
-import { View, TextInput, StyleSheet } from 'react-native';
+import { View, TextInput, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS } from '../constants/theme';
 
 const SearchBar = () => {
     return (
         <View style={styles.container}>
+            <Image
+                source={require('../assets/images/logore.png')}
+                style={styles.logo}
+                resizeMode="contain"
+                accessible
+                accessibilityLabel="WTG Nicosia logo"
+            />
             <Ionicons name="search" size={20} color={COLORS.textDim} style={styles.icon} />
             <TextInput
                 placeholder="Search bars, clubs, events"
@@ -27,6 +34,11 @@ const styles = StyleSheet.create({
         marginVertical: 15,
         borderWidth: 1,
         borderColor: COLORS.border,
+    },
+    logo: {
+        width: 28,
+        height: 28,
+        marginRight: 10,
     },
     icon: {
         marginRight: 10,
