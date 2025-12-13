@@ -4,7 +4,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SIZES, FONTS } from '../constants/theme';
 import SearchBar from '../components/SearchBar';
 import VenueCard from '../components/VenueCard';
-import { fetchTrendingVenues, voteVenue, subscribeVenueStatus, subscribeVenueVotes } from '../lib/supabaseApi';
+import {
+    fetchTrendingVenues,
+    voteVenue,
+    subscribeVenueStatus,
+    subscribeVenueVotes,
+    fetchVenueOccupancy,
+    fetchUserVenueVotes,
+    subscribeVoteBroadcast,
+    broadcastVote,
+} from '../lib/supabaseApi';
 import { useAuth } from '../lib/authContext';
 
 const FILTERS = ['All', 'Chill', 'Party', 'Student Night', 'Near Me'];
@@ -26,6 +35,8 @@ const HomeScreen = () => {
     const [venues, setVenues] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [occupancyMap, setOccupancyMap] = useState({});
+    const [userVotes, setUserVotes] = useState({});
     const heroAnim = useRef(new Animated.Value(0)).current;
     const listAnim = useRef(new Animated.Value(0)).current;
     const pulseAnim = useRef(new Animated.Value(0)).current;
@@ -35,6 +46,17 @@ const HomeScreen = () => {
             setLoading(true);
             const data = await fetchTrendingVenues();
             setVenues(data || []);
+            const ids = (data || []).map(v => v.id);
+            if (ids.length) {
+                const occ = await fetchVenueOccupancy(ids);
+                const map = {};
+                occ.forEach(item => {
+                    map[item.venue_id] = item;
+                });
+                setOccupancyMap(map);
+            } else {
+                setOccupancyMap({});
+            }
         } catch (err) {
             console.warn('Failed to load venues', err);
         } finally {
@@ -42,15 +64,38 @@ const HomeScreen = () => {
         }
     }, []);
 
+    const loadUserVotes = useCallback(async () => {
+        if (!user) {
+            setUserVotes({});
+            return;
+        }
+        try {
+            const votes = await fetchUserVenueVotes();
+            const map = {};
+            votes.forEach(v => {
+                map[v.venue_id] = v.status;
+            });
+            setUserVotes(map);
+        } catch (err) {
+            console.warn('Failed to load user votes', err);
+        }
+    }, [user]);
+
     useEffect(() => {
         loadVenues();
         const votesChannel = subscribeVenueVotes(() => loadVenues());
         const statusChannel = subscribeVenueStatus(() => loadVenues());
+        const broadcastChannel = subscribeVoteBroadcast(() => loadVenues());
         return () => {
             if (votesChannel?.unsubscribe) votesChannel.unsubscribe();
             if (statusChannel?.unsubscribe) statusChannel.unsubscribe();
+            if (broadcastChannel?.unsubscribe) broadcastChannel.unsubscribe();
         };
     }, [loadVenues]);
+
+    useEffect(() => {
+        loadUserVotes();
+    }, [loadUserVotes]);
 
     useEffect(() => {
         const entry = Animated.parallel([
@@ -74,7 +119,18 @@ const HomeScreen = () => {
                 Alert.alert('Login required', 'Please log in to vote.');
                 return;
             }
+            if (userVotes[venueId] === 'yes') {
+                Alert.alert('Thanks', 'You already voted yes here.');
+                return;
+            }
             await voteVenue(venueId, status);
+            setUserVotes(prev => ({ ...prev, [venueId]: status }));
+            if (status === 'yes') {
+                setVenues(prev =>
+                    prev.map(v => v.id === venueId ? { ...v, yes_votes_last24h: (v.yes_votes_last24h || 0) + 1 } : v)
+                );
+            }
+            broadcastVote({ venueId, status }).catch(() => {});
         } catch (err) {
             if (err?.code === 'UNAUTHENTICATED') {
                 Alert.alert('Login required', 'Please log in to vote.');
@@ -167,13 +223,19 @@ const HomeScreen = () => {
                                 onVote={() => handleVote(venue.id, 'yes')}
                                 disabled={!user}
                             />
+                            <View style={styles.occupancyRow}>
+                                <Text style={styles.occupancyLabel}>Inside now</Text>
+                                <Text style={styles.occupancyValue}>
+                                    {occupancyMap[venue.id]?.current_count ?? 0} • {(occupancyMap[venue.id]?.status_tag || 'empty').toUpperCase()}
+                                </Text>
+                            </View>
                             <View style={styles.voteRow}>
                                 {['yes', 'maybe', 'no'].map((status) => (
                                     <TouchableOpacity
                                         key={status}
-                                        style={[styles.votePill, !user && styles.votePillDisabled]}
+                                        style={[styles.votePill, !user && styles.votePillDisabled, userVotes[venue.id] === 'yes' && styles.votePillDisabled]}
                                         onPress={() => handleVote(venue.id, status)}
-                                        disabled={!user}
+                                        disabled={!user || userVotes[venue.id] === 'yes'}
                                     >
                                         <Text style={styles.votePillText}>{status.toUpperCase()}</Text>
                                     </TouchableOpacity>
@@ -283,6 +345,21 @@ const styles = StyleSheet.create({
         color: COLORS.white,
         ...FONTS.bodyMedium,
         fontSize: 12,
+    },
+    occupancyRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 6,
+        marginBottom: 6,
+    },
+    occupancyLabel: {
+        ...FONTS.body,
+        color: COLORS.textDim,
+    },
+    occupancyValue: {
+        ...FONTS.bodyMedium,
+        color: COLORS.text,
     },
     bottomNavContainer: {
         position: 'absolute',

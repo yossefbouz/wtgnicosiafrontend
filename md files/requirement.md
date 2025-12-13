@@ -19,6 +19,14 @@ This document outlines what I need from you to help build and refine your skills
 - Must-have competencies vs. nice-to-have interests.
 - Industry or niche focus (e.g., fintech, health tech, embedded).
 
+## 4) Admin Panel & Realtime Occupancy Requirements
+- Roles: `admin` (CRUD everything), `venueOwner` (manage own venues, bookings, messages), `user` (profile and booking only); enforce via JWT roles plus venueId claims and scoped RBAC/ABAC in the API.
+- Presence counters: check-in/heartbeat increments; checkout/timeout decrements; emit live `occupancy:update` events to venue dashboards and the user app.
+- Bookings: booking confirmation increments “expected” count; check-in moves expected to actual; checkout decrements; expose booking status events over realtime.
+- Chat and map: venue rooms plus a citywide room; only users who opt in to “going” appear on the map and can post; location storage uses a short TTL with explicit consent gates.
+- APIs: `/auth`, `/venues`, `/presence` (check-in/out/heartbeat/occupancy), `/bookings`, `/chat`, and a realtime WebSocket/SSE channel for occupancy and chat.
+- Integrations: maps (Google or Mapbox) and push (FCM/APNs); optional hosted realtime (Pusher/Ably) if not self-hosting WebSockets.
+
 ## 4) Gaps and Pain Points
 - Tasks you find difficult or slow.
 - Repeated mistakes or areas with low confidence.
