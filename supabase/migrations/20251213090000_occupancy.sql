@@ -1,6 +1,9 @@
 -- Occupancy tables, policies, and RPCs for venue admin controls
 -- Status tags are text enums to match mobile client chips
 
+
+create extension if not exists "pg_cron" with schema extensions;
+
 create type public.occupancy_status as enum ('empty', 'moderate', 'busy', 'full');
 create type public.occupancy_source as enum ('auto', 'manual');
 
