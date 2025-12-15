@@ -45,8 +45,8 @@ QR = faster check-in, harder to fake than plain codes
     - youssefbouzgarrouyb@gmail.com
     
   initial_venue_owners:
-    venue_id_1: owner@example.com // dummy data
-    venue_id_2: another_owner@example.com
+    3d3a2b5e-1f21-4c9b-9c4b-2c1d3ab6c8f3: owner@example.com # Old Town Social (mock)
+    5f0b7d9b-43cf-4a18-97c9-98e92dd33b2d: another_owner@example.com # Marina Club (mock)
 presence:
   heartbeat_interval_seconds: 30
   expiry_threshold_seconds: 90

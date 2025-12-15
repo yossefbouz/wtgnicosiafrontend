@@ -3,7 +3,16 @@ import { View, StyleSheet, Image, StatusBar, Text, TouchableOpacity, Dimensions,
 import MapView, { PROVIDER_DEFAULT, Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SIZES } from '../constants/theme';
-import { fetchMapVenues, fetchVenueStatus, subscribeVenueStatus } from '../lib/supabaseApi';
+import { useAuth } from '../lib/authContext';
+import {
+    fetchMapVenues,
+    fetchVenueStatus,
+    subscribeVenueStatus,
+    fetchVenueOccupancy,
+    subscribeVenueOccupancy,
+    voteVenue,
+    fetchUserVenueVotes
+} from '../lib/supabaseApi';
 
 const { width } = Dimensions.get('window');
 
@@ -15,10 +24,13 @@ const CYPRUS_REGION = {
 };
 
 const CyprusMapScreen = () => {
+    const { user } = useAuth();
     const mapRef = useRef(null);
     const [venues, setVenues] = useState([]);
     const [selectedVenue, setSelectedVenue] = useState(null);
     const [statusMap, setStatusMap] = useState({});
+    const [occupancyMap, setOccupancyMap] = useState({});
+    const [userVotes, setUserVotes] = useState({});
     const [loading, setLoading] = useState(true);
 
     const loadVenues = useCallback(async () => {
@@ -26,11 +38,21 @@ const CyprusMapScreen = () => {
             setLoading(true);
             const data = await fetchMapVenues();
             setVenues(data || []);
+
             if (data?.length) {
-                const statuses = await fetchVenueStatus(data.map(v => v.id));
-                const byVenue = {};
-                (statuses || []).forEach(s => { byVenue[s.venue_id] = s; });
-                setStatusMap(byVenue);
+                const ids = data.map(v => v.id);
+                const [statuses, occupancies] = await Promise.all([
+                    fetchVenueStatus(ids),
+                    fetchVenueOccupancy(ids)
+                ]);
+
+                const statusObj = {};
+                (statuses || []).forEach(s => { statusObj[s.venue_id] = s; });
+                setStatusMap(statusObj);
+
+                const occObj = {};
+                (occupancies || []).forEach(o => { occObj[o.venue_id] = o; });
+                setOccupancyMap(occObj);
             }
         } catch (err) {
             console.warn('Failed to load map venues', err);
@@ -39,18 +61,65 @@ const CyprusMapScreen = () => {
         }
     }, []);
 
+    const loadUserVotes = useCallback(async () => {
+        if (!user) {
+            setUserVotes({});
+            return;
+        }
+        try {
+            const votes = await fetchUserVenueVotes();
+            const map = {};
+            votes.forEach(v => {
+                map[v.venue_id] = v.status;
+            });
+            setUserVotes(map);
+        } catch (err) {
+            console.warn('Failed to load user votes', err);
+        }
+    }, [user]);
+
     useEffect(() => {
         loadVenues();
+        loadUserVotes();
+
         const statusChannel = subscribeVenueStatus((payload) => {
             const row = payload.new || payload.old;
             if (row?.venue_id) {
                 setStatusMap((prev) => ({ ...prev, [row.venue_id]: { ...(prev[row.venue_id] || {}), ...row } }));
             }
         });
+
+        const occupancyChannel = subscribeVenueOccupancy((payload) => {
+            const row = payload.new || payload.old;
+            if (row?.venue_id) {
+                setOccupancyMap((prev) => ({ ...prev, [row.venue_id]: row }));
+            }
+        });
+
         return () => {
             if (statusChannel?.unsubscribe) statusChannel.unsubscribe();
+            if (occupancyChannel?.unsubscribe) occupancyChannel.unsubscribe();
         };
-    }, [loadVenues]);
+    }, [loadVenues, loadUserVotes]);
+
+    const handleVote = async () => {
+        if (!selectedVenue) return;
+        if (!user) {
+            alert('Please log in to vote.');
+            return;
+        }
+        if (userVotes[selectedVenue.id] === 'yes') {
+            alert('You already voted yes here.');
+            return;
+        }
+        try {
+            await voteVenue(selectedVenue.id, 'yes');
+            setUserVotes(prev => ({ ...prev, [selectedVenue.id]: 'yes' }));
+        } catch (err) {
+            console.warn('Vote failed', err);
+            alert('Vote failed, please try again.');
+        }
+    };
 
     const handleMarkerPress = (venue) => {
         setSelectedVenue(venue);
@@ -136,13 +205,26 @@ const CyprusMapScreen = () => {
                             </View>
                             <View style={styles.divider} />
                             <View style={styles.infoItem}>
+                                <Text style={styles.infoLabel}>INSIDE</Text>
+                                <Text style={styles.infoText} numberOfLines={1}>
+                                    {occupancyMap[selectedVenue.id]?.current_count ?? 0}
+                                </Text>
+                            </View>
+                            <View style={styles.divider} />
+                            <View style={styles.infoItem}>
                                 <Text style={styles.infoLabel}>WAIT</Text>
-                                <Text style={styles.infoText} numberOfLines={1}>{statusMap[selectedVenue.id]?.wait_time_minutes ? `${statusMap[selectedVenue.id].wait_time_minutes} min` : ''}</Text>
+                                <Text style={styles.infoText} numberOfLines={1}>{statusMap[selectedVenue.id]?.wait_time_minutes ? `${statusMap[selectedVenue.id].wait_time_minutes} min` : '-'}</Text>
                             </View>
                         </View>
 
-                        <TouchableOpacity style={styles.actionButton}>
-                            <Text style={styles.actionButtonText}>View Details</Text>
+                        <TouchableOpacity
+                            style={[styles.actionButton, userVotes[selectedVenue.id] === 'yes' && styles.actionButtonDisabled]}
+                            onPress={handleVote}
+                            disabled={userVotes[selectedVenue.id] === 'yes'}
+                        >
+                            <Text style={styles.actionButtonText}>
+                                {userVotes[selectedVenue.id] === 'yes' ? 'Voted Yes' : 'Vote Yes'}
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -295,6 +377,10 @@ const styles = StyleSheet.create({
         ...FONTS.h4,
         color: COLORS.white,
         fontSize: 14,
+    },
+    actionButtonDisabled: {
+        opacity: 0.7,
+        backgroundColor: COLORS.secondary
     }
 });
 

@@ -32,8 +32,8 @@ Plan derived from CURRENTCHNAGES content and aligned to skills in `md files/SKIL
 - Admin/Owner Console (Product Roadmap / Technical Architecture)
   - Define admin/owner routes for CRUD on venues/events/deals/sponsored_listings and report review.
   - Add audit logging for destructive actions; map JWT roles/claims to routes.
-  - Sponsored placements: label as “Sponsored”; benchmark price €15; enforce budget caps (daily €30, weekly €150) per venue unless updated; add per-screen tier placeholders (Home €20, Events €15, Map €10) until real tiers are set.
-  - Seed access: initial admin `youssefbouzgarrouyb@gmail.com`; initial venue owners mapping: `venue_id_1 -> owner@example.com`, `venue_id_2 -> another_owner@example.com` (replace dummies with real IDs).
+  - Sponsored placements: label as "Sponsored"; benchmark price EUR 15; enforce budget caps (daily EUR 30, weekly EUR 150) per venue unless updated; per-screen tiers confirmed: Home EUR 20, Events EUR 15, Map EUR 10.
+  - Seed access: initial admin `youssefbouzgarrouyb@gmail.com`; initial venue owners mapping: `3d3a2b5e-1f21-4c9b-9c4b-2c1d3ab6c8f3 -> owner@example.com` (Old Town Social, mock) and `5f0b7d9b-43cf-4a18-97c9-98e92dd33b2d -> another_owner@example.com` (Marina Club, mock). Replace with production IDs when available.
   - Deliverables: route/permission matrix, audit log fields, UI/API flow notes.
 
 - Chat + Map Consent (Safety & Moderation / API & Frontend Integration)
@@ -79,16 +79,14 @@ Plan derived from CURRENTCHNAGES content and aligned to skills in `md files/SKIL
 
 - Safety: report categories; escalation path (moderator → admin?); default temp-ban durations; initial blocklist keywords.
 - Rate limits: specific thresholds for chat/votes/reports (per minute/hour) to replace current `null`.
-- Sponsorship pricing: clarify per-screen tiers beyond benchmark €15 and caps (daily €30, weekly €150) if needed.
-- Admin & Access: confirm/replace dummy venue IDs in owner mapping.
 
 ## Applied Inputs (from inputsfrome.md)
 
 - Booking: max party size 8; cancellation window 120 minutes; confirmation format QR.
-- Sponsorship: label text “Sponsored”; benchmark price €15; budget caps daily €30, weekly €150.
-- Sponsorship tiers (placeholder): Home €20, Events €15, Map €10 (replace when real tiers available).
+- Sponsorship: label text "Sponsored"; benchmark price EUR 15; budget caps daily EUR 30, weekly EUR 150.
+- Sponsorship tiers: Home EUR 20, Events EUR 15, Map EUR 10 (confirmed).
 - Notifications: starting soon at 150/60/15 minutes pre-event; favorite busy trigger at 80% occupancy; sponsored alerts max 2 per user per day, require user activity in last 7 days.
-- Admin & Access: initial admin `youssefbouzgarrouyb@gmail.com`; initial owners `venue_id_1 -> owner@example.com`, `venue_id_2 -> another_owner@example.com` (dummy IDs to replace).
+- Admin & Access: initial admin `youssefbouzgarrouyb@gmail.com`; initial owners `3d3a2b5e-1f21-4c9b-9c4b-2c1d3ab6c8f3 -> owner@example.com` (Old Town Social, mock), `5f0b7d9b-43cf-4a18-97c9-98e92dd33b2d -> another_owner@example.com` (Marina Club, mock); replace with production IDs when ready.
 - Presence/Occupancy: heartbeat 30s; expiry 90s; payload uses status tags {empty, moderate, busy, full}.
 - Rate limits: chat 60/min, 500/hr; votes 30/min, 300/hr; reports 20/hr.
 - Safety: report categories {spam, harassment, fake_event, unsafe_behavior}; temp bans 12h/48h/permanent; blocklist includes same terms.
