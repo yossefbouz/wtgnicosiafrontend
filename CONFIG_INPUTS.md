@@ -3,18 +3,15 @@
 Fill these fields so I can wire the backend and Expo client. Keep secrets out of git; put keys in `.env`.
 
 ## 1) Supabase project
-- Project name/URL:
-- `EXPO_PUBLIC_SUPABASE_URL`: https://fqldwkrmlinlsoiodwnd.supabase.co
-- `EXPO_PUBLIC_SUPABASE_ANON_KEY`: sb_publishable_5C2Wm0YiXxUP1pZ4ShEirA_xgLfUIYT
-- `SUPABASE_SERVICE_ROLE_KEY` (server/edge only):  sb_service_role_5C2Wm0YiXxUP1pZ4ShEirA_xgLfUIYT 
+- Project name/URL: [Insert Project Name]
+- `EXPO_PUBLIC_SUPABASE_URL`: [Insert Supabase URL]
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY`: [Insert Anon Key]
+- `SUPABASE_SERVICE_ROLE_KEY` (server/edge only): [Insert Service Role Key]
 - Dev vs prod: separate projects or schemas? One Supabase project for now: wtg-nicosia-dev (dev only).
 - Schema prefix (if any):
 
-
-
 ## 3) Maps
 - Google Maps API key (iOS): using mock data for now 
-- Google Maps API key (Android): using mock data for now 
 - Apple Maps config (if needed):using mock data for now
 
 ## 4) Push + email

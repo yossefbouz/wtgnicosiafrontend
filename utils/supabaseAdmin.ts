@@ -1,3 +1,10 @@
+// -----------------------------------------------------------------------------
+// CRITICAL WARNING:
+// This file uses the SUPABASE_SERVICE_ROLE_KEY.
+// NEVER import this file into any React Native component or client-side code (`screens/`, `components/`, etc).
+// Doing so will compromise your database security by bundling the admin logic (and potentially keys if misconfigured) into the app.
+// This is strictly for usage in local node scripts (e.g. `scripts/`) or server-side edge functions.
+// -----------------------------------------------------------------------------
 import { createClient } from '@supabase/supabase-js';
 
 function requireEnv(name: string) {
