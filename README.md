@@ -4,6 +4,8 @@
 
 <h1 align="center">WTG-Nicosia</h1>
 
+
+
 <p align="center">
   Find the vibe tonight — a mobile app for international students in Nicosia to discover venues & events with real-time “who’s going” signals.
   <br />
@@ -25,6 +27,11 @@
 
 ## Demo
 - Live: N/A
+  
+
+https://github.com/user-attachments/assets/a3651fff-2e54-4e90-8f7d-afdf8b45dc1b
+
+
 
 ## Screenshots
 <p align="center">
