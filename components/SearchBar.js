@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, TextInput, StyleSheet, Image } from 'react-native';
+import { View, TextInput, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SIZES, FONTS } from '../constants/theme';
+import { COLORS } from '../constants/theme';
 
-const SearchBar = () => {
+const SearchBar = ({ value, onChangeText, onSubmit, onClear }) => {
     return (
         <View style={styles.container}>
             <Image
@@ -18,7 +18,23 @@ const SearchBar = () => {
                 placeholder="Search bars, clubs, events"
                 placeholderTextColor={COLORS.textDim}
                 style={styles.input}
+                value={value}
+                onChangeText={onChangeText}
+                onSubmitEditing={onSubmit}
+                returnKeyType="search"
+                autoCapitalize="none"
+                autoCorrect={false}
             />
+            {value?.length > 0 && (
+                <TouchableOpacity
+                    onPress={onClear}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear search"
+                    style={styles.clearButton}
+                >
+                    <Ionicons name="close" size={18} color={COLORS.textDim} />
+                </TouchableOpacity>
+            )}
         </View>
     );
 };
@@ -48,6 +64,10 @@ const styles = StyleSheet.create({
         color: COLORS.text,
         fontSize: 16,
         fontFamily: 'Inter-Regular',
+    },
+    clearButton: {
+        paddingLeft: 8,
+        paddingVertical: 4,
     },
 });
 

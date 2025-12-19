@@ -24,7 +24,7 @@ returns boolean language sql stable security definer
 as $$
   select exists (
     select 1 from public.users u
-    where u.id = auth.uid() and u.role = any(target_roles)
+    where u.id = auth.uid() and u.role::text = any(target_roles)
   );
 $$;
 
@@ -315,25 +315,44 @@ alter table public.promo_codes enable row level security;
 
 -- Users policies
 create policy "users select self" on public.users for select using (auth.uid() = id);
-create policy "users insert self" on public.users for insert with check (auth.uid() = id);
-create policy "users update self" on public.users for update using (auth.uid() = id) with check (auth.uid() = id);
+create policy "users insert self" on public.users for insert with check (auth.uid() = id and role = 'user');
+create policy "users insert admin" on public.users for insert with check (public.is_role(array['admin']));
+create policy "users update self" on public.users
+  for update using (auth.uid() = id)
+  with check (
+    auth.uid() = id
+    and role = (select u.role from public.users u where u.id = auth.uid())
+  );
+create policy "users update admin" on public.users for update using (public.is_role(array['admin'])) with check (public.is_role(array['admin']));
 
 -- Venues
 create policy "venues read all" on public.venues for select using (true);
-create policy "venues write owner" on public.venues for insert with check (public.is_role(array['owner','admin']));
-create policy "venues update owner" on public.venues for update using (public.is_role(array['owner','admin'])) with check (public.is_role(array['owner','admin']));
+create policy "venues write owner" on public.venues
+  for insert with check (
+    public.is_role(array['admin'])
+    or (public.is_role(array['owner']) and owner_id = auth.uid())
+  );
+create policy "venues update owner" on public.venues
+  for update using (
+    public.is_role(array['admin'])
+    or owner_id = auth.uid()
+  )
+  with check (
+    public.is_role(array['admin'])
+    or owner_id = auth.uid()
+  );
 
 -- Venue status
 create policy "venue_status read all" on public.venue_status for select using (true);
 create policy "venue_status insert owner" on public.venue_status for insert with check (
-  public.is_role(array['owner','admin']) or
+  public.is_role(array['admin']) or
   exists (select 1 from public.venues v where v.id = venue_status.venue_id and v.owner_id = auth.uid())
 );
 create policy "venue_status update owner" on public.venue_status for update using (
-  public.is_role(array['owner','admin']) or
+  public.is_role(array['admin']) or
   exists (select 1 from public.venues v where v.id = venue_status.venue_id and v.owner_id = auth.uid())
 ) with check (
-  public.is_role(array['owner','admin']) or
+  public.is_role(array['admin']) or
   exists (select 1 from public.venues v where v.id = venue_status.venue_id and v.owner_id = auth.uid())
 );
 
@@ -343,8 +362,20 @@ create policy "venue_votes upsert own" on public.venue_votes for all using (auth
 
 -- Events
 create policy "events read all" on public.events for select using (true);
-create policy "events write owner" on public.events for insert with check (public.is_role(array['owner','admin']));
-create policy "events update owner" on public.events for update using (public.is_role(array['owner','admin'])) with check (public.is_role(array['owner','admin']));
+create policy "events write owner" on public.events
+  for insert with check (
+    public.is_role(array['admin'])
+    or exists (select 1 from public.venues v where v.id = events.venue_id and v.owner_id = auth.uid())
+  );
+create policy "events update owner" on public.events
+  for update using (
+    public.is_role(array['admin'])
+    or exists (select 1 from public.venues v where v.id = events.venue_id and v.owner_id = auth.uid())
+  )
+  with check (
+    public.is_role(array['admin'])
+    or exists (select 1 from public.venues v where v.id = events.venue_id and v.owner_id = auth.uid())
+  );
 
 -- Event interest
 create policy "event_interest read own" on public.event_interest for select using (auth.uid() = user_id);
@@ -360,13 +391,55 @@ create policy "check_ins write own" on public.check_ins for insert with check (a
 
 -- Deals
 create policy "deals read all" on public.deals for select using (true);
-create policy "deals write owner" on public.deals for insert with check (public.is_role(array['owner','admin']));
-create policy "deals update owner" on public.deals for update using (public.is_role(array['owner','admin'])) with check (public.is_role(array['owner','admin']));
+create policy "deals write owner" on public.deals
+  for insert with check (
+    public.is_role(array['admin'])
+    or exists (select 1 from public.venues v where v.id = deals.venue_id and v.owner_id = auth.uid())
+  );
+create policy "deals update owner" on public.deals
+  for update using (
+    public.is_role(array['admin'])
+    or exists (select 1 from public.venues v where v.id = deals.venue_id and v.owner_id = auth.uid())
+  )
+  with check (
+    public.is_role(array['admin'])
+    or exists (select 1 from public.venues v where v.id = deals.venue_id and v.owner_id = auth.uid())
+  );
 
 -- Sponsored listings
 create policy "sponsored read all" on public.sponsored_listings for select using (true);
-create policy "sponsored write owner" on public.sponsored_listings for insert with check (public.is_role(array['owner','admin']));
-create policy "sponsored update owner" on public.sponsored_listings for update using (public.is_role(array['owner','admin'])) with check (public.is_role(array['owner','admin']));
+create policy "sponsored write owner" on public.sponsored_listings
+  for insert with check (
+    public.is_role(array['admin'])
+    or exists (select 1 from public.venues v where v.id = sponsored_listings.venue_id and v.owner_id = auth.uid())
+    or exists (
+      select 1
+      from public.events e
+      join public.venues v on v.id = e.venue_id
+      where e.id = sponsored_listings.event_id and v.owner_id = auth.uid()
+    )
+  );
+create policy "sponsored update owner" on public.sponsored_listings
+  for update using (
+    public.is_role(array['admin'])
+    or exists (select 1 from public.venues v where v.id = sponsored_listings.venue_id and v.owner_id = auth.uid())
+    or exists (
+      select 1
+      from public.events e
+      join public.venues v on v.id = e.venue_id
+      where e.id = sponsored_listings.event_id and v.owner_id = auth.uid()
+    )
+  )
+  with check (
+    public.is_role(array['admin'])
+    or exists (select 1 from public.venues v where v.id = sponsored_listings.venue_id and v.owner_id = auth.uid())
+    or exists (
+      select 1
+      from public.events e
+      join public.venues v on v.id = e.venue_id
+      where e.id = sponsored_listings.event_id and v.owner_id = auth.uid()
+    )
+  );
 
 -- Bookings
 create policy "bookings read own" on public.bookings for select using (
@@ -403,7 +476,17 @@ create policy "reports update mod" on public.reports for update using (public.is
 
 -- Chat
 create policy "chat_rooms read all" on public.chat_rooms for select using (true);
-create policy "chat_rooms write admin" on public.chat_rooms for insert with check (public.is_role(array['admin','owner']));
+create policy "chat_rooms write admin" on public.chat_rooms
+  for insert with check (
+    public.is_role(array['admin'])
+    or exists (select 1 from public.venues v where v.id = chat_rooms.venue_id and v.owner_id = auth.uid())
+    or exists (
+      select 1
+      from public.events e
+      join public.venues v on v.id = e.venue_id
+      where e.id = chat_rooms.event_id and v.owner_id = auth.uid()
+    )
+  );
 
 create policy "chat_members read own" on public.chat_members for select using (auth.uid() = user_id);
 create policy "chat_members write own" on public.chat_members for insert with check (auth.uid() = user_id);

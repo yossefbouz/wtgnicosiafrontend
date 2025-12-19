@@ -172,6 +172,9 @@ const ProfileScreen = () => {
         } else {
             setProfile(null);
             setHistory({ votes: [], interests: [], checkIns: [], favorites: [] });
+            fadeAnim.setValue(1);
+            slideAnim.setValue(0);
+            scaleAnim.setValue(1);
         }
     }, [user]);
 
@@ -246,12 +249,20 @@ const ProfileScreen = () => {
     };
 
     const handleLogout = async () => {
-        await signOut();
+        try {
+            await signOut();
+        } catch (err) {
+            Alert.alert('Logout failed', err?.message || 'Could not log out right now.');
+            return;
+        }
         setProfile(null);
         setHistory({ votes: [], interests: [], checkIns: [], favorites: [] });
         setEmail('');
         setPassword('');
         setConfirmPassword('');
+        fadeAnim.setValue(1);
+        slideAnim.setValue(0);
+        scaleAnim.setValue(1);
     };
 
     const userProfile = profile || {

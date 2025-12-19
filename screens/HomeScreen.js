@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, StatusBar, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SIZES, FONTS } from '../constants/theme';
@@ -37,6 +37,7 @@ const HomeScreen = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [occupancyMap, setOccupancyMap] = useState({});
     const [userVotes, setUserVotes] = useState({});
+    const [searchQuery, setSearchQuery] = useState('');
     const heroAnim = useRef(new Animated.Value(0)).current;
     const listAnim = useRef(new Animated.Value(0)).current;
     const pulseAnim = useRef(new Animated.Value(0)).current;
@@ -167,6 +168,17 @@ const HomeScreen = () => {
         outputRange: [0.08, 0.22],
     });
 
+    const filteredVenues = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) return venues;
+        return venues.filter((venue) => {
+            const name = (venue.name || '').toLowerCase();
+            const address = (venue.address || '').toLowerCase();
+            const city = (venue.city || '').toLowerCase();
+            return name.includes(query) || address.includes(query) || city.includes(query);
+        });
+    }, [venues, searchQuery]);
+
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
@@ -179,7 +191,12 @@ const HomeScreen = () => {
                     </Animated.View>
                 </View>
 
-                <SearchBar />
+                <SearchBar
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    onSubmit={() => {}}
+                    onClear={() => setSearchQuery('')}
+                />
 
                 <Animated.View style={[styles.filterContainer, { opacity: listAnim, transform: [{ translateY: listTranslate }] }]}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -205,7 +222,11 @@ const HomeScreen = () => {
                         </View>
                     )}
 
-                    {venues.map((venue) => (
+                    {!loading && searchQuery.trim() && filteredVenues.length === 0 && (
+                        <Text style={styles.emptyText}>No matches for "{searchQuery.trim()}"</Text>
+                    )}
+
+                    {filteredVenues.map((venue) => (
                         <Animated.View
                             key={venue.id}
                             style={[
@@ -379,6 +400,11 @@ const styles = StyleSheet.create({
         zIndex: -1,
     },
     cardWrapper: {
+        marginBottom: 20,
+    },
+    emptyText: {
+        color: COLORS.textDim,
+        ...FONTS.body,
         marginBottom: 20,
     },
 });
